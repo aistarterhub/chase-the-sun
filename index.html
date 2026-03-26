@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -1016,7 +1016,8 @@ function azDeg(radians) {
 function sunny(v, mins) {
   const sp = sunAt(mins);
   const alt = sp.altitude * 180/Math.PI;
-  if (alt < 4) return false;
+  const minAlt = 5 + (1 - v.open) * 20;
+  if (alt < minAlt) return false;
   const az = azDeg(sp.azimuth);
 
   // Facing check â€” is sun roughly in front of this terrace?
@@ -1172,16 +1173,33 @@ function filterOk(v, s) {
 }
 
 function refreshCounts() {
-  let s = 0, sh = 0;
+  let sunnyN = 0, shadeN = 0;
   VENUES.forEach(v => {
-    // Count all venues that pass quality filter (not category filter)
-    if (v.type === 'terrace' && v.outdoor !== true) return;
-    isSunny(v) ? s++ : sh++;
+    const s = sunnyCache.has(v.id) ? sunnyCache.get(v.id) : sunny(v, curMins);
+    if (!filterOk(v, s)) return;
+    if (s) sunnyN++;
+    else shadeN++;
   });
-  document.getElementById('sunny-count').textContent = s;
-  document.getElementById('stat-s').textContent  = s;
-  document.getElementById('stat-sh').textContent = sh;
-  const scEl = document.getElementById('shade-count'); if(scEl) scEl.textContent = sh;
+
+  document.getElementById('sunny-count').textContent = sunnyN;
+  document.getElementById('shade-count').textContent = shadeN;
+  document.getElementById('stat-s').textContent = sunnyN;
+  document.getElementById('stat-sh').textContent = shadeN;
+
+  const typeCounts = { bar: 0, cafe: 0, terrace: 0, rooftop: 0 };
+  VENUES.forEach(v => {
+    const s = sunnyCache.has(v.id) ? sunnyCache.get(v.id) : sunny(v, curMins);
+    if (!filterOk(v, s)) return;
+    if (typeCounts[v.type] !== undefined) typeCounts[v.type]++;
+  });
+
+  document.querySelectorAll('.cat-pill[data-f]').forEach(p => {
+    const f = p.dataset.f;
+    if (f === 'bar') p.textContent = `🍺 Bars (${typeCounts.bar})`;
+    else if (f === 'cafe') p.textContent = `☕ Cafés (${typeCounts.cafe})`;
+    else if (f === 'terrace') p.textContent = `🌿 Terraces F&B (${typeCounts.terrace})`;
+    else if (f === 'rooftop') p.textContent = `🏙 Rooftops (${typeCounts.rooftop})`;
+  });
 }
 
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
@@ -1389,6 +1407,7 @@ function setTime(mins, animate=false) {
 
   updateRouteNote();
   rebuildSunnyCache();
+  drawCompass();
 }
 
 document.getElementById('t-slider').addEventListener('input', e => {
