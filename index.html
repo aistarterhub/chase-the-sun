@@ -1013,35 +1013,33 @@ function azDeg(radians) {
   return ((radians * 180/Math.PI) + 180 + 360) % 360;
 }
 
-function sunny(v, mins) {
-  const sp = sunAt(mins);
-  const alt = sp.altitude * 180/Math.PI;
-  const minAlt = 5 + (1 - v.open) * 20;
-  if (alt < minAlt) return false;
-  const az = azDeg(sp.azimuth);
+function sunny(v, minutes) {
+  const sp = sunAt(minutes);
+  const alt = sp.altitude * 180 / Math.PI;
+  if (alt < 4) return false;
 
-  // Facing check — is sun roughly in front of this terrace?
-  let diff = Math.abs(az - v.facing);
-  if (diff > 180) diff = 360 - diff;
-  if (diff >= 85) return false;
+  const sunAz = azDeg(sp.azimuth);
+  const altRad = sp.altitude;
 
-  // Shadow ray cast — check if any nearby building blocks the sun
-  const nearby = SHADOW_INDEX[v.id];
-  if (nearby) {
-    const altRad = sp.altitude; // already in radians from SunCalc
-    const tanAlt = Math.tan(altRad);
-    if (tanAlt > 0) {
-      for (const b of nearby) {
-        // Is this building in the direction of the sun?
-        let bDiff = Math.abs(az - b.brg);
-        if (bDiff > 180) bDiff = 360 - bDiff;
-        if (bDiff > 40) continue; // building not in sun path
-        // Shadow length = height / tan(altitude)
-        const shadowLen = (b.f * 3) / tanAlt;
-        if (shadowLen >= b.d) return false; // shadow reaches venue
-      }
-    }
+  // Determine which quadrant the sun is in
+  let quad;
+  if (sunAz >= 315 || sunAz < 45) quad = 'N';
+  else if (sunAz >= 45 && sunAz < 135) quad = 'E';
+  else if (sunAz >= 135 && sunAz < 225) quad = 'S';
+  else quad = 'W';
+
+  // Check if opposite building casts a shadow over this venue
+  // Sun in east → building to the east blocks light → check E
+  const bld = v.blds && v.blds[quad];
+  if (bld && bld.h && bld.d) {
+    const shadowLen = bld.h / Math.tan(altRad);
+    if (shadowLen > bld.d) return false;
   }
+
+  // Also check sun azimuth vs venue facing (keeps directional logic)
+  let diff = Math.abs(sunAz - v.facing);
+  if (diff > 180) diff = 360 - diff;
+  if (diff >= 90) return false;
 
   return true;
 }
